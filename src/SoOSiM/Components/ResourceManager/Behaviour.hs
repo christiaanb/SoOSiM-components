@@ -4,7 +4,7 @@ module SoOSiM.Components.ResourceManager.Behaviour where
 import           Control.Arrow       (first,second)
 import           Data.Char           (toLower)
 import qualified Data.HashMap.Strict as HashMap
-import           Data.List           (mapAccumR,intersect,(\\),partition)
+import           Data.List           (mapAccumL,intersect,(\\),partition)
 
 import SoOSiM
 import SoOSiM.Components.ResourceDescriptor
@@ -18,21 +18,21 @@ behaviour ::
   -> Sim RM_State
 behaviour s (Message _ (AddResource rId rd) retAddr) = do
   let rs  = HashMap.insert rId rd (resources s)
-      rsI = HashMap.insertWith (++) rd [rId] (resources_inv s)
-      s'  = s { resources = rs, resources_inv = rsI, free_resources = rId : (free_resources s) }
+      rsI = HashMap.insertWith (flip (++)) rd [rId] (resources_inv s)
+      s'  = s { resources = rs, resources_inv = rsI, free_resources = (free_resources s) ++ [rId] }
   yield s'
 
 behaviour s (Message _ (RequestResources appId rsList) retAddr) = do
   let (free',ids) = assignFree s rsList
       busy        = map (,appId) ids
-      s'          = s { free_resources = free', busy_resources = busy ++ (busy_resources s) }
+      s'          = s { free_resources = free', busy_resources = (busy_resources s) ++ busy }
   traceMsg ("REQ: " ++ show (rsList,ids))
   respond ResourceManager retAddr (RM_Resources ids)
   yield s'
 
 behaviour s (Message _ (FreeResources appId) retAddr) = do
   let (freed,busy') = first (map fst) $ partition ((== appId) . snd) (busy_resources s)
-      s'            = s { free_resources = freed ++ (free_resources s), busy_resources = busy' }
+      s'            = s { free_resources = (free_resources s) ++ freed, busy_resources = busy' }
   yield s'
 
 behaviour s (Message _ (GetResourceDescription rId) retAddr) = do
@@ -61,4 +61,4 @@ assignFree s rsList = (free',givenIds)
                            ) rsList
     wanted           = zip available (map snd rsList)
     dm               = map toLower (dist_method s)
-    (free',givenIds) = second concat $ mapAccumR (checkFree dm) (free_resources s) wanted
+    (free',givenIds) = second concat $ mapAccumL (checkFree dm) (free_resources s) wanted
