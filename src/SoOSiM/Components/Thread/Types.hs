@@ -53,4 +53,7 @@ data Thread
   , _relativeDeadlineIn  :: Deadline
   }
 
+instance Show Thread where
+  show = show . _threadId
+
 makeLenses ''Thread

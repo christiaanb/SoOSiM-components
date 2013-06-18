@@ -11,6 +11,7 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.State.Strict
 import Control.Monad.Writer
+import           Data.BinPack
 import           Data.Char           (toLower)
 import qualified Data.Foldable       as F
 import           Data.Function       (on)
@@ -103,7 +104,7 @@ behaviour (Message _ (RunProgram fN) retAddr) = do
     -- let th_allM = allocate threads rc assignResourceSimple ()
     let th_allM = case (fmap (map toLower) $ allocSort thread_graph) of
                     Just "minwcet" -> allocate threads rc assignResourceMinWCET 0
-                    Just "bestfit" -> allocate threads rc assignResourceBestFit 0.0
+                    Just "bestfit" -> allocate threads rc assignResourceBestFit ()
                     _              -> allocate threads rc assignResourceSimple ()
 
     -- Another alternative allocation strategy
@@ -215,9 +216,6 @@ allocate ::
   -> Maybe (HashMap ThreadId [ResourceId])
 allocate threads resMap assignResource initR = thAll
   where
-    threads' = reverse
-             $ L.sortBy (comparing (\(_,t) -> t^.exec_cycles))
-             $ HashMap.toList threads
     -- Build the inverse of resMap
     resMapI = Map.toList $ foldl
                 (\m (rId,r) ->
@@ -228,78 +226,50 @@ allocate threads resMap assignResource initR = thAll
                     ) r m
                 ) Map.empty resMap
 
+    -- Distribute threads over compatible resources
+    (thsLeft,resThreadMap) =
+      T.mapAccumL (\ths (rd,rIds) ->
+                     let (thsComp,thsNotcomp) = partitionHashMap (\t -> (t^.rr) `isComplient` rd) ths
+                         thsComp'             = HashMap.elems thsComp
+                     in (thsNotcomp,if HashMap.null thsComp then Nothing else Just (thsComp',rIds))
+                  ) threads
+                    resMapI
+
     -- Load-balance resource assignment
-    thAll   = fmap HashMap.fromList $ T.sequence $ snd $ T.mapAccumL
-                (\m (t_id,t) -> assignResource t m)
-                resMapI
-                threads'
+    thAll = case HashMap.null thsLeft of
+              False -> Nothing
+              True  -> Just $ L.foldl' (HashMap.unionWith (++)) HashMap.empty $ map assignResource (catMaybes resThreadMap)
 
 type AssignProc a =
-  Thread
-  -> [(ResourceDescriptor,[(ResourceId,a)])]
-  -> ([(ResourceDescriptor,[(ResourceId,a)])],Maybe (ThreadId,[ResourceId]))
+  ([Thread],[(ResourceId,a)])
+  -> HashMap ThreadId [ResourceId]
 
+-- | Assign the resource and rotate the resourceId list to balance
+-- the assignment of threads to resources
 assignResourceSimple :: AssignProc ()
-assignResourceSimple t [] = ([], Nothing)
-assignResourceSimple t (rm@(r,(rId:rIds)):rms)
-  -- If a compatible resource is found, assign the resource
-  -- and rotate the resourceId list to balance the assignment of
-  -- threads to resources
-  | isComplient r (t^.rr) = ((r,rIds ++ [rId]):rms,Just $ (t^.threadId,[fst rId]))
-  | otherwise             = let (rms',rId) = assignResourceSimple t rms
-                            in  (rm:rms',rId)
+assignResourceSimple (ths,rds) = HashMap.fromList $ snd $ T.mapAccumL
+    (\(rId:rIds) t -> (rIds ++ [rId], (t^.threadId,[fst rId]))
+    ) rds ths'
+  where
+    ths' = reverse $ L.sortBy (comparing (^.exec_cycles)) ths
 
+-- | Assign the resource and insert the assigned resource a list
+-- ordered according to the accumulate exec_cycles
 assignResourceMinWCET :: AssignProc Int
-assignResourceMinWCET t rms = (c_rs' ++ other_rs, rIdM)
+assignResourceMinWCET (ths,rds) = HashMap.fromList $ snd $ T.mapAccumL
+    (\(rId:rIds) t -> let rId'  = second (+(t^.exec_cycles)) rId
+                      in (L.insertBy (comparing snd) rId' rIds,(t^.threadId,[fst rId]))
+    ) rds ths'
   where
-    (c_rs,other_rs) = L.partition (\(r,_) -> r `isComplient` (t^.rr)) rms
-    (rIdM,c_rs')    = case (map (second (L.sortBy maxUtil')) $ L.sortBy maxUtil c_rs) of
-                        []                    -> (Nothing,[])
-                        ((r,(rId:rIds)):rms)  -> (Just $ (t^.threadId,[fst rId]), (r,(second (+(t^.exec_cycles)) rId:rIds)):rms)
+    ths' = reverse $ L.sortBy (comparing (^.exec_cycles)) ths
 
-    maxUtil :: (ResourceDescriptor,[(ResourceId,Int)]) -> (ResourceDescriptor,[(ResourceId,Int)]) -> Ordering
-    maxUtil (_,rs1) (_,rs2) = compare (map snd rs1) (map snd rs2)
-
-    maxUtil' :: (ResourceId,Int) -> (ResourceId,Int) -> Ordering
-    maxUtil' (_,u1) (_,u2) = compare u1 u2
-
-assignResourceBestFit :: AssignProc Float
-assignResourceBestFit th rms = (rsUpdated ++ rsOther, rIdM)
+assignResourceBestFit :: AssignProc ()
+assignResourceBestFit (ths,rds) = case null left of
+                                    True  -> HashMap.fromList $ concat rdMap
+                                    False -> error $ "Can't assign threads (tId,utility): " ++ show (map (\t -> (t,threadUtility t)) left) ++ "\n: Bin Content: " ++ show bins
   where
-    -- Partition into complient and non-complient resources
-    (rsComplient,rsOther) = L.partition (\(resDec,_) -> resDec `isComplient` (th ^. rr)) rms
-    -- Determine the utility of the Thread
-    thUtil                = threadUtility th
-    -- First sort Resource type by best fit
-    rsComplientSorted     = map (second (L.sortBy (maxUtil thUtil))) rsComplient
-    -- Order the resources
-    rsComplientOrdered    = L.sortBy (compareBy (maxUtil thUtil) `on` snd) rsComplientSorted
-
-    -- Assign the resource and update the bin
-    (rIdM,rsUpdated)      = case rsComplientOrdered of
-                              [] -> (Nothing,[])
-                              ((r,(rId:rIds)):rms') -> ( Just (th^.threadId,[fst rId])
-                                                       , (r,((second (+thUtil) rId):rIds)):rms'
-                                                       )
-
-    maxUtil :: Float -> (ResourceId,Float) -> (ResourceId,Float) -> Ordering
-    maxUtil u (_,u1) (_,u2) = let u1' = 1.0 - u1 - u
-                                  u2' = 1.0 - u2 - u
-                              in case (u1' < 0, u2' < 0) of
-                                  (True,True)   -> compare u1' u2'
-                                  (True,False)  -> GT
-                                  (False,True)  -> LT
-                                  (False,False) -> compare u2' u1'
-
-    compareBy :: (a -> a -> Ordering) -> [a] -> [a] -> Ordering
-    compareBy f [] [] = EQ
-    compareBy f [] _  = LT
-    compareBy f _  [] = GT
-    compareBy f (x:xs) (y:ys) = case f x y of
-                                  EQ -> compareBy f xs ys
-                                  c  -> c
-
-
+    (bins,left) = binpack BestFit Decreasing threadUtility (emptyBins 0.0 (length rds)) ths
+    rdMap       = zipWith (\(_,ths') rId -> map (\t -> (t^.threadId,[fst rId])) ths') bins rds
 
 threadUtility :: Thread -> Float
 threadUtility t = case (t ^. relativeDeadlineOut, t ^. relativeDeadlineIn) of
@@ -319,3 +289,5 @@ inferDeadline es v = ( case dlsOut of {[] -> Infinity ; (x:_) -> Exact x}
     dlsIn  = reverse  . L.sort . catMaybes $ map deadline (filter ((== vId) . end) es)
 
 traceMsg = lift . SoOSiM.traceMsg
+
+partitionHashMap f t = (HashMap.filter f t, HashMap.filter (not . f) t)
