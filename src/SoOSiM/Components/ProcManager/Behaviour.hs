@@ -268,16 +268,16 @@ assignResourceBestFit (ths,rds) = case null left of
                                     True  -> HashMap.fromList $ concat rdMap
                                     False -> error $ "Can't assign threads (tId,utility): " ++ show (map (\t -> (t,threadUtility t)) left) ++ "\n: Bin Content: " ++ show bins
   where
-    (bins,left) = binpack BestFit Decreasing threadUtility (emptyBins 0.0 (length rds)) ths
+    (bins,left) = binpack BestFit Decreasing threadUtility (emptyBins 1.0 (length rds)) ths
     rdMap       = zipWith (\(_,ths') rId -> map (\t -> (t^.threadId,[fst rId])) ths') bins rds
 
 threadUtility :: Thread -> Float
 threadUtility t = case (t ^. relativeDeadlineIn, t ^. relativeDeadlineOut) of
-  (Infinity, Exact dOut) -> (fromIntegral $ t ^. activation_time) / (fromIntegral dOut)
+  (Infinity, Exact dOut) -> (fromIntegral $ t ^. exec_cycles) / (fromIntegral dOut)
   (Exact dIn, Exact dOut) -> let dlDiff = dOut - dIn
                              in if (dlDiff < 1)
                                  then error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has invalid deadlines (inbound,outbound): " ++ show (dIn,dOut)
-                                 else (fromIntegral $ t ^. activation_time) / (fromIntegral dlDiff)
+                                 else (fromIntegral $ t ^. exec_cycles) / (fromIntegral dlDiff)
   (dIn,dOut) -> error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has unspecified deadlines (inbound,outbound): " ++ show (dIn,dOut)
 
 inferDeadline :: [Edge] -> Vertex -> (Deadline,Deadline)
