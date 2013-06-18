@@ -272,12 +272,13 @@ assignResourceBestFit (ths,rds) = case null left of
     rdMap       = zipWith (\(_,ths') rId -> map (\t -> (t^.threadId,[fst rId])) ths') bins rds
 
 threadUtility :: Thread -> Float
-threadUtility t = case (t ^. relativeDeadlineOut, t ^. relativeDeadlineIn) of
-  (Exact d2, Exact d1) -> let dlDiff = d2 - d1
-                          in if (dlDiff < 1)
-                              then error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has invalid deadlines (inbound,outbound): " ++ show (d1,d2)
-                              else (fromIntegral $ t ^. activation_time) / (fromIntegral dlDiff)
-  (d1,d2) -> error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has unspecified deadlines (inbound,outbound): " ++ show (d1,d2)
+threadUtility t = case (t ^. relativeDeadlineIn, t ^. relativeDeadlineOut) of
+  (Infinity, Exact dOut) -> (fromIntegral $ t ^. activation_time) / (fromIntegral dOut)
+  (Exact dIn, Exact dOut) -> let dlDiff = dOut - dIn
+                             in if (dlDiff < 1)
+                                 then error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has invalid deadlines (inbound,outbound): " ++ show (dIn,dOut)
+                                 else (fromIntegral $ t ^. activation_time) / (fromIntegral dlDiff)
+  (dIn,dOut) -> error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has unspecified deadlines (inbound,outbound): " ++ show (dIn,dOut)
 
 inferDeadline :: [Edge] -> Vertex -> (Deadline,Deadline)
 inferDeadline es v = ( case dlsOut of {[] -> Infinity ; (x:_) -> Exact x}
