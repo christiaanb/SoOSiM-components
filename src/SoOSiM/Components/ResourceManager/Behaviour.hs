@@ -30,7 +30,7 @@ behaviour s (Message _ (RequestResources appId rsList) retAddr) = do
   respond ResourceManager retAddr (RM_Resources ids)
   yield s'
 
-behaviour s (Message _ (FreeResources appId) retAddr) = do
+behaviour s (Message _ (FreeAllResources appId) retAddr) = do
   let (freed,busy') = first (map fst) $ partition ((== appId) . snd) (busy_resources s)
       s'            = s { free_resources = (free_resources s) ++ freed, busy_resources = busy' }
   yield s'

@@ -184,7 +184,7 @@ behaviour (Message _ TerminateProgram retAddr) = do
   -- The program has completed, free the resources
   pmId <- lift $ getComponentId
   rId  <- use rm
-  res  <- lift $ freeResources rId pmId
+  res  <- lift $ freeAllResources rId pmId
 
   -- Stop the scheduler
   lift $ stopScheduler (returnAddress retAddr)

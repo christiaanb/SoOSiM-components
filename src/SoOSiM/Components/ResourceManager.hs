@@ -3,6 +3,7 @@ module SoOSiM.Components.ResourceManager
   , addResource
   , requestResources
   , freeResources
+  , freeAllResources
   , getResourceDescription
   )
 where

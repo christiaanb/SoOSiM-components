@@ -25,7 +25,8 @@ data RM_State
 data RM_Cmd
   = AddResource ResourceId ResourceDescriptor
   | RequestResources AppId ResourceRequestList
-  | FreeResources AppId
+  | FreeAllResources AppId
+  | FreeResources AppId [ResourceId]
   | GetResourceDescription ResourceId
   deriving Typeable
 

@@ -44,7 +44,7 @@ behaviour (Message k (Read base size) retAddr) = do
                                               return (m++m')
 
   lift $ traceMsg $ "Start reading: " ++ show mmIDs
-  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (return ())
+  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (lift $ compute 1 ())
                                                   (\id_ -> lift $ writeOtherMem id_ b s)
                                                   idM)
   lift $ traceMsg $ "Finish reading: " ++ show mmIDs
@@ -64,7 +64,7 @@ behaviour (Message _ (Write base size) retAddr) = do
                                               return (m++m')
 
   lift $ traceMsg $ "Start writing: " ++ show mmIDs
-  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (return ())
+  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (lift $ compute 1 ())
                                                   (\id_ -> lift $ writeOtherMem id_ b s)
                                                   idM)
   lift $ traceMsg $ "Finish writing: " ++ show mmIDs

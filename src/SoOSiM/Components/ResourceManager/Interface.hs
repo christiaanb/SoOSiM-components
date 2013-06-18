@@ -34,8 +34,11 @@ addResource cId rId rd = notify ResourceManager cId (AddResource rId rd)
 requestResources :: ComponentId -> AppId -> ResourceRequestList -> Sim [ResourceId]
 requestResources cId appId rl = invoke ResourceManager cId (RequestResources appId rl) >>= (\(RM_Resources r) -> return r)
 
-freeResources :: ComponentId -> AppId -> Sim ()
-freeResources cId appId = notify ResourceManager cId (FreeResources appId)
+freeAllResources :: ComponentId -> AppId -> Sim ()
+freeAllResources cId appId = notify ResourceManager cId (FreeAllResources appId)
+
+freeResources :: ComponentId -> AppId -> [ResourceId] -> Sim ()
+freeResources cId appId rIds = notify ResourceManager cId (FreeResources appId rIds)
 
 getResourceDescription :: ComponentId -> ResourceId -> Sim (Maybe ResourceDescriptor)
 getResourceDescription cId rId = invoke ResourceManager cId (GetResourceDescription rId) >>= (\(RM_Descriptor r) -> return r)
