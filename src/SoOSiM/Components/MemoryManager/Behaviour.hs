@@ -7,6 +7,7 @@ import Control.Monad.State
 import Data.List
 import Data.Maybe
 import SoOSiM
+import SoOSiM.Types (ReturnAddress)
 
 import SoOSiM.Components.Common
 import SoOSiM.Components.MemoryManager.Interface
@@ -27,7 +28,7 @@ behaviour (Message _ (Register base size) retAddr) = do
                    Nothing     -> return ()
                    Just parent -> do cId <- lift getComponentId
                                      lift $ inform parent (MemorySource base size (Just cId))
-                 ackMM retAddr
+                 ackMM retAddr size
 
     (s,_)  -> error $ "Already registered: " ++ show s
 
@@ -44,12 +45,14 @@ behaviour (Message k (Read base size) retAddr) = do
                                               return (m++m')
 
   lift $ traceMsg $ "Start reading: " ++ show mmIDs
-  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (lift $ compute 1 ())
-                                                  (\id_ -> lift $ writeOtherMem id_ b s)
+  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (do lift $ compute 1 ()
+                                                      lift $ traceMsg $ "Acknowledging read: " ++ show (returnAddress retAddr,b,s)
+                                                      ackMM retAddr s
+                                                  )
+                                                  (\id_ -> do lift $ traceMsg $ "Forwarding read: " ++ show (returnAddress retAddr,b,s) ++ " to " ++ show id_
+                                                              lift $ readOtherMem id_ retAddr b s)
                                                   idM)
-  lift $ traceMsg $ "Finish reading: " ++ show mmIDs
-
-  ackMM retAddr
+  -- lift $ traceMsg $ "Finish reading: " ++ show mmIDs
 
 behaviour (Message _ (Write base size) retAddr) = do
   directory <- use addressLookup
@@ -64,14 +67,17 @@ behaviour (Message _ (Write base size) retAddr) = do
                                               return (m++m')
 
   lift $ traceMsg $ "Start writing: " ++ show mmIDs
-  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (lift $ compute 1 ())
-                                                  (\id_ -> lift $ writeOtherMem id_ b s)
+  forM_ mmIDs $ (\(MemorySource b s idM) -> maybe (do lift $ compute 1 ()
+                                                      lift $ traceMsg $ "Acknowledging write: " ++ show (returnAddress retAddr,b,s)
+                                                      ackMM retAddr s
+                                                  )
+                                                  (\id_ -> do lift $ traceMsg $ "Forwarding write: " ++ show (returnAddress retAddr,b,s) ++ " to " ++ show id_
+                                                              lift $ writeOtherMem id_ retAddr b s)
                                                   idM)
-  lift $ traceMsg $ "Finish writing: " ++ show mmIDs
-
-  ackMM retAddr
+  -- lift $ traceMsg $ "Finish writing: " ++ show mmIDs
 
 behaviour (Message _ (UpdateP m) _) = do
+  lift $ traceMsg $ "Received memory location update: " ++ show m
   addressLookup %= (m:)
   parentM <- use parentMM
   case parentM of
@@ -79,6 +85,7 @@ behaviour (Message _ (UpdateP m) _) = do
     Just parent -> lift $ inform parent m
 
 behaviour (Message _ (Request l) retAddr) = do
+  lift $ traceMsg $ "Receive memory location request: " ++ show l
   directory <- use addressLookup
   cId <- lift getComponentId
   let newM (MemorySource b s Nothing) = (MemorySource b s (Just cId))
@@ -129,13 +136,29 @@ overlapDiff (pB,pE) (qB,qE)
     dist = r1 - r2
 
 inform :: ComponentId -> MemorySource -> Sim ()
-inform pId m = notify MemoryManager pId (UpdateP m)
+inform pId m = do
+  traceMsg $ "Notifying parent on memory registration: " ++ show (pId,m)
+  notify MemoryManager pId (UpdateP m)
 
 request :: ComponentId -> [(Int,Int)] -> Sim MM_Msg
-request pId l = invoke MemoryManager pId (Request l)
+request pId l = do
+  traceMsg $ "Asking parent(" ++ show pId ++ ") for memory ranges: " ++ show l
+  resp <- invoke MemoryManager pId (Request l)
+  traceMsg $ "Response from parent(" ++ show pId ++ "): " ++ show resp
+  return resp
 
-writeOtherMem :: ComponentId -> Int -> Int -> Sim ()
-writeOtherMem cId base size = invoke MemoryManager cId (Write base size) >> return ()
+writeOtherMem :: ComponentId -> ReturnAddress -> Int -> Int -> Sim ()
+writeOtherMem cId retAddr base size = do
+  curId <- getComponentId
+  invokeAsync MemoryManager cId (Write base size) (mmAsyncHandler curId retAddr)
 
-ackMM r = lift $ respond MemoryManager r MM_Void
+readOtherMem :: ComponentId -> ReturnAddress -> Int -> Int -> Sim ()
+readOtherMem cId retAddr base size = do
+  curId <- getComponentId
+  invokeAsync MemoryManager cId (Read base size) (mmAsyncHandler curId retAddr)
+
+mmAsyncHandler :: ComponentId -> ReturnAddress -> MM_Msg -> Sim ()
+mmAsyncHandler cId retAddr msg = respondS MemoryManager (Just cId) retAddr msg
+
+ackMM r s       = lift $ respond MemoryManager r (MM_ACK s)
 updateChild r m = lift $ respond MemoryManager r (MM_Update m)

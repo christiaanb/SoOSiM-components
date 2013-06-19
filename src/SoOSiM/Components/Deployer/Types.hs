@@ -16,8 +16,11 @@ data DM_Cmd
                   , (Int,Int)   -- ^ Memory to reserve
                   )
                 ]
-  deriving Typeable
+  deriving (Typeable)
+
+instance Show DM_Cmd where
+  show _ = "StartThread"
 
 data DM_Msg
   = DM_TH [ComponentId]
-  deriving Typeable
+  deriving (Typeable,Show)

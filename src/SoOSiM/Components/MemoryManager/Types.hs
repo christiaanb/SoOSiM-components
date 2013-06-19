@@ -34,9 +34,10 @@ data MM_Cmd
   | Write    Int Int
   | Request  [(Int,Int)]
   | UpdateP  MemorySource
-  deriving Typeable
+  deriving (Typeable,Show)
 
 data MM_Msg
   = MM_Void
+  | MM_ACK Int
   | MM_Update [MemorySource]
-  deriving Typeable
+  deriving (Typeable,Show)

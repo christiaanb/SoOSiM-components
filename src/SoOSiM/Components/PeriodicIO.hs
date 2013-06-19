@@ -20,7 +20,7 @@ newtype PeriodicIOS = PeriodicIOS ( Maybe (TVar [(TQueue (Int,Int),Int,Int,Int)]
                                   )
 
 data PIO_Cmd = PIO_Stop
-  deriving Typeable
+  deriving (Typeable,Show)
 
 instance ComponentInterface PeriodicIO where
   type State PeriodicIO               = PeriodicIOS

@@ -23,8 +23,8 @@ makeLenses ''PM_State
 data PM_Cmd
   = RunProgram String
   | TerminateProgram
-  deriving Typeable
+  deriving (Typeable,Show)
 
 data PM_Msg
   = PM_Void
-  deriving Typeable
+  deriving (Typeable,Show)

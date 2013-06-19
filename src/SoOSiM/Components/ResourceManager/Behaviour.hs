@@ -35,6 +35,11 @@ behaviour s (Message _ (FreeAllResources appId) retAddr) = do
       s'            = s { free_resources = (free_resources s) ++ freed, busy_resources = busy' }
   yield s'
 
+behaviour s (Message _ (FreeResources appId rIds) retAddr) = do
+  let (freed,busy') = first (map fst) $ partition (\(rId,aId) -> aId == appId && rId `elem` rIds) (busy_resources s)
+      s'            = s { free_resources = (free_resources s) ++ freed, busy_resources = busy' }
+  yield s'
+
 behaviour s (Message _ (GetResourceDescription rId) retAddr) = do
   let rdM = HashMap.lookup rId (resources s)
   respond ResourceManager retAddr (RM_Descriptor rdM)

@@ -28,10 +28,10 @@ data RM_Cmd
   | FreeAllResources AppId
   | FreeResources AppId [ResourceId]
   | GetResourceDescription ResourceId
-  deriving Typeable
+  deriving (Typeable,Show)
 
 data RM_Msg
   = RM_Resources [ResourceId]
   | RM_Descriptor (Maybe ResourceDescriptor)
   | RM_Void
-  deriving Typeable
+  deriving (Typeable,Show)

@@ -12,9 +12,9 @@ data AH_State
 data AH_Cmd
   = LoadProgram String
   | AddApps (HashMap String ApplicationGraph)
-  deriving Typeable
+  deriving (Typeable,Show)
 
 data AH_Msg
   = AH_AG ApplicationGraph
   | AH_Void
-  deriving Typeable
+  deriving (Typeable,Show)

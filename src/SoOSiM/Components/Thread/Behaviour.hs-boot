@@ -21,6 +21,7 @@ data TH_Cmd = TH_Start | TH_Stop
 data TH_Msg
 
 instance Typeable TH_Cmd
+instance Show     TH_Cmd
 instance Typeable TH_Msg
 
 threadBehaviour ::

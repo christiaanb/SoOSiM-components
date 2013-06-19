@@ -31,9 +31,17 @@ registerMem Nothing base size = componentLookup MemoryManager >>= \x -> case x o
 readMem :: Int -> Int -> Sim ()
 readMem base size = componentLookup MemoryManager >>= \x -> case x of
     Nothing  -> error "no instantiated memory manager"
-    Just cId -> invoke MemoryManager cId (Read base size) >> return ()
+    Just cId -> do (MM_ACK s) <- invoke MemoryManager cId (Read base size)
+                   runUntilAll cId size [s]
 
 writeMem :: Int -> Int -> Sim ()
 writeMem base size = componentLookup MemoryManager >>= \x -> case x of
     Nothing  -> error "no instantiated memory manager"
-    Just cId -> invoke MemoryManager cId (Write base size) >> return ()
+    Just cId -> do (MM_ACK s) <- invoke MemoryManager cId (Write base size)
+                   runUntilAll cId size [s]
+
+runUntilAll :: ComponentId -> Int -> [Int] -> Sim ()
+runUntilAll cId s ss = case compare s (sum ss) of
+  LT -> do (MM_ACK s') <- expect MemoryManager cId
+           runUntilAll cId s (s':ss)
+  _  -> return ()

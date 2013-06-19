@@ -77,7 +77,15 @@ data SC_Cmd
   | FindFreeResources ThreadId
   | StopSched
   | NewIOToken
-  deriving Typeable
+  deriving (Typeable)
+
+instance Show SC_Cmd where
+  show (Init _ _ _ _ _ _ _)  = "SC_INIT"
+  show (ThreadCompleted _)   = "ThreadCompleted"
+  show WakeUpThreads       = "WakeUpThreads"
+  show (FindFreeResources _) = "FindFreeResources"
+  show StopSched           = "StopSched"
+  show NewIOToken          = "NewIOToken"
 
 data SC_Msg
   = SC_Void

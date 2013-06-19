@@ -30,7 +30,7 @@ makeLenses ''TH_State
 data TH_Cmd
   = TH_Start
   | TH_Stop
-  deriving Typeable
+  deriving (Typeable,Show)
 
 data TH_Msg
   = TH_Void
