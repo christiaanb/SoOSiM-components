@@ -105,6 +105,8 @@ behaviour (Message _ (RunProgram fN) retAddr) = do
     let (th_allM,unused) = case (fmap (map toLower) $ allocSort thread_graph) of
                              Just "minwcet" -> allocate threads rc assignResourceMinWCET 0
                              Just "bestfit" -> allocate threads rc assignResourceBestFit ()
+                             Just "offline" -> let vs = HashMap.fromList $ map (\v -> (v_id v, alloc v)) (vertices thread_graph)
+                                               in allocate threads rc (assignResourceOffline vs) ()
                              _              -> allocate threads rc assignResourceSimple ()
 
     unless (null unused) ( do traceMsg $ "Freeing usused resources: " ++ show unused
@@ -286,6 +288,18 @@ threadUtility t = case (t ^. relativeDeadlineIn, t ^. relativeDeadlineOut) of
                                  then error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has invalid deadlines (inbound,outbound): " ++ show (dIn,dOut)
                                  else (fromIntegral $ t ^. exec_cycles) / (fromIntegral dlDiff)
   (dIn,dOut) -> error $ "Thread with ID: " ++ show (t ^. threadId) ++ " has unspecified deadlines (inbound,outbound): " ++ show (dIn,dOut)
+
+assignResourceOffline :: HashMap ThreadId (Maybe Int) -> AssignProc ()
+assignResourceOffline vs (ths,rds) = HashMap.fromList $ map
+  (\t -> let tId     = t ^. threadId
+             thAlloc = vs HashMap.! tId
+          in case thAlloc of
+            Nothing -> error $ "No static allocation for Thread with ID: " ++ show tId
+            Just k | k > (-1) && k < length rds -> (tId,[fst $ rds !! k])
+                   | k < (-1)                   -> error $ "Allocation id should be non-negative for Thread with ID: " ++ show tId
+                   | otherwise                  -> error $ "Allocation id to high for Thread with ID: " ++ show tId ++ " given only " ++ show (length rds) ++ "available resources"
+
+  ) ths
 
 inferDeadline :: [Edge] -> Vertex -> (Deadline,Deadline)
 inferDeadline es v = ( case dlsOut of {[] -> Infinity ; (x:_) -> Exact x}

@@ -41,6 +41,7 @@ data Vertex
     -- | (Offset,Length)
   , memRange              :: (Int,Int)
   , appCommands           :: [AppCommand]
+  , alloc                 :: Maybe Int
   } deriving Show
 
 data AppCommand
@@ -63,7 +64,8 @@ instance FromJSON Vertex where
       (v .:? "pointerToCodeInMemory" .!= 0) <*>
       (v .:  "executionTime") <*>
       (v .:? "mem" .!= (0,0)) <*>
-      (v .:? "commands" .!= [])
+      (v .:? "commands" .!= []) <*>
+      (v .:? "alloc")
 
 -- | This structure represents a directed edge between two vertexes,
 -- source and destination. This edge will pass tokens from one Vertex
