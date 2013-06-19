@@ -102,13 +102,15 @@ behaviour (Message _ (RunProgram fN) retAddr) = do
     -- Allocation algorithms. Here I just statically allocate
     -- threads to resources in the simplest possible way
     -- let th_allM = allocate threads rc assignResourceSimple ()
-    let th_allM = case (fmap (map toLower) $ allocSort thread_graph) of
-                    Just "minwcet" -> allocate threads rc assignResourceMinWCET 0
-                    Just "bestfit" -> allocate threads rc assignResourceBestFit ()
-                    _              -> allocate threads rc assignResourceSimple ()
+    let (th_allM,unused) = case (fmap (map toLower) $ allocSort thread_graph) of
+                             Just "minwcet" -> allocate threads rc assignResourceMinWCET 0
+                             Just "bestfit" -> allocate threads rc assignResourceBestFit ()
+                             _              -> allocate threads rc assignResourceSimple ()
 
-    -- Another alternative allocation strategy
-    -- let th_allM = allocate_global threads' res
+    unless (null unused) ( do traceMsg $ "Freeing usused resources: " ++ show unused
+                              lift $ freeResources rId pmId unused
+                         )
+
     return $ fmap (,rc) th_allM
 
   -- Make connections
@@ -213,8 +215,8 @@ allocate ::
   -> [(ResourceId,ResourceDescriptor)]
   -> AssignProc a
   -> a
-  -> Maybe (HashMap ThreadId [ResourceId])
-allocate threads resMap assignResource initR = thAll
+  -> (Maybe (HashMap ThreadId [ResourceId]), [ResourceId])
+allocate threads resMap assignResource initR = (thAll,unused)
   where
     -- Build the inverse of resMap
     resMapI = Map.toList $ foldl
@@ -239,6 +241,11 @@ allocate threads resMap assignResource initR = thAll
     thAll = case HashMap.null thsLeft of
               False -> Nothing
               True  -> Just $ L.foldl' (HashMap.unionWith (++)) HashMap.empty $ map assignResource (catMaybes resThreadMap)
+
+    -- Unused resources
+    unused = case thAll of
+      Nothing -> map fst resMap
+      Just k  -> (map fst resMap) L.\\ (concat $ HashMap.elems k)
 
 type AssignProc a =
   ([Thread],[(ResourceId,a)])
