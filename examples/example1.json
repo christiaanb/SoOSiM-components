@@ -8,16 +8,14 @@
                    , "executionTime"        : 4
                    , "mem"                  : [ 0, 8 ]
                    , "commands"             : [ { "read"  : [0,4] }
-                                              , { "delay" : 4 }
                                               , { "write" : [4,4] }
                                               ]
                    }
                  , { "id"                   : 4
                    , "resourceRequirements" : "ANY_RES"
                    , "executionTime"        : 2
-                   , "commands"             : [ { "read"  : [5,1] }
-                                              , { "read"  : [4,1] }
-                                              , { "read"  : [6,1] }
+                   , "commands"             : [ { "read"  : [4,1] }
+                                              , { "read"  : [5,1] }
                                               , { "delay" : 2 }
                                               , { "write" : [0,1] }
                                               ]
@@ -25,9 +23,9 @@
                  , { "id"                   : 5
                    , "resourceRequirements" : "ANY_RES"
                    , "executionTime"        : 2
-                   , "commands"             : [ { "read"  : [4,1] }
-                                              , { "read"  : [5,1] }
-                                              , { "read"  : [7,1] }
+                   , "commands"             : [ { "read"  : [5,1] }
+                                              , { "read"  : [4,1] }
+                                              , { "read"  : [6,1] }
                                               , { "delay" : 2 }
                                               , { "write" : [1,1] }
                                               ]
@@ -35,8 +33,8 @@
                  , { "id"                   : 6
                    , "resourceRequirements" : "ANY_RES"
                    , "executionTime"        : 2
-                   , "commands"             : [ { "read"  : [4,1] }
-                                              , { "read"  : [6,1] }
+                   , "commands"             : [ { "read"  : [6,1] }
+                                              , { "read"  : [5,1] }
                                               , { "read"  : [7,1] }
                                               , { "delay" : 2 }
                                               , { "write" : [2,1] }
@@ -45,8 +43,7 @@
                  , { "id"                   : 7
                    , "resourceRequirements" : "ANY_RES"
                    , "executionTime"        : 2
-                   , "commands"             : [ { "read"  : [5,1] }
-                                              , { "read"  : [7,1] }
+                   , "commands"             : [ { "read"  : [7,1] }
                                               , { "read"  : [6,1] }
                                               , { "delay" : 2 }
                                               , { "write" : [3,1] }
@@ -60,7 +57,7 @@
              , "edges" :
                  [ { "nodeOut" : -1
                    , "nodeIn"  : 1
-                   , "ntokens" : 100
+                   , "ntokens" : 2
                    }
                  , { "nodeOut" : 1
                    , "nodeIn"  : 4
@@ -93,7 +90,7 @@
                  ]
              }
            ]
-, "Distribution" : "all"
+, "Distribution" : "half"
 , "Platform" :
     [ { "id"   : 0
       , "type" : { "mem" : 5000 }
